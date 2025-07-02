@@ -431,7 +431,9 @@
             break;
           }
         }
-      } else if (/^[a-zA-Z]$/.test(e.key)) {
+      } else if (
+          /^[a-zA-Z]$/.test(e.key)
+          && document.activeElement !== hiddenInput) {
         for (let i = 0; i < currentGuess.length; i++) {
           if (phrase[i] !== " " && !currentGuess[i] && revealed[i] === "_") {
             currentGuess[i] = e.key.toUpperCase();
