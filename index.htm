@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Phrase Guesser</title>
+  <style>
+    :root {
+      --bg: #f0f0f0;
+      --fg: #333;
+      --box-border: #444;
+      --bar-bg: #888;
+      --msg-wrong: #fdd;
+      --msg-right: #dfd;
+    }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      padding: 30px;
+      background-color: var(--bg);
+      color: var(--fg);
+      text-align: center;
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark {
+      --bg: #222;
+      --fg: #eee;
+      --box-border: #aaa;
+      --bar-bg: #bbb;
+      --msg-wrong: #600;
+      --msg-right: #060;
+    }
+    h1 { margin-bottom: 0; }
+    #hint { font-size: 18px; color: #666; margin-top: 5px; }
+
+    #hiddenPhrase {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      font-size: 32px; letter-spacing: 8px;
+      margin: 20px auto; max-width: 600px; gap: 10px;
+    }
+    .char-box {
+      border-bottom: 2px solid var(--box-border);
+      width: 24px; height: 40px; line-height: 40px;
+      text-transform: uppercase;
+    }
+    .space-box { border: none; width: 24px; }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0) }
+      20%,60% { transform: translateX(-5px) }
+      40%,80% { transform: translateX(5px) }
+    }
+    .shake { animation: shake 0.4s; }
+
+    #message {
+      font-size: 18px; margin-top: 20px;
+      min-height: 1.2em;
+      transition: background 0.3s;
+    }
+
+    button {
+      margin: 10px 5px; padding: 10px 20px;
+      font-size: 16px; cursor: pointer;
+    }
+    #controls { margin-bottom: 10px; }
+
+    #resultsScreen {
+      display: none; margin-top: 40px;
+      background: #fff; border: 1px solid #ccc;
+      padding: 20px; width: 320px;
+      margin-left: auto; margin-right: auto;
+    }
+    body.dark #resultsScreen {
+      background: #333; border-color: #555; color: #eee;
+    }
+    #resultsScreen .bar {
+      background-color: var(--bar-bg);
+      height: 20px; margin: 4px 0;
+      text-align: left; color: white; padding-left: 5px;
+      white-space: nowrap;
+      min-width: 60px;
+    }
+    #resultsScreen p { margin: 6px 0; }
+    #sharePanel { display: none; margin-top: 10px; }
+    #shareText {
+      width: 100%; height: 60px; resize: none;
+      font-size: 14px; padding: 5px;
+    }
+
+    @media (max-width: 480px) {
+      #hiddenPhrase { font-size: 24px; letter-spacing: 4px; }
+      .char-box { width: 18px; height: 30px; line-height: 30px; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔤 Phrase Guesser</h1>
+  <div id="hint"></div>
+
+  <div id="hiddenPhrase"></div>
+  <div id="message"></div>
+
+  <div id="controls">
+    <button id="resetBtn">🔄 Reset Game</button>
+    <button id="themeToggle">🌓 Toggle Theme</button>
+  </div>
+
+  <div id="resultsScreen">
+    <h2>Thanks for playing!</h2>
+    <p><strong>Guesses:</strong> <span id="guessCountDisplay">0</span></p>
+    <p><strong>Time:</strong> <span id="timeElapsed">0</span>s</p>
+    <p id="badgeLine"></p>
+    <p><strong>Games Played:</strong> <span id="gamesPlayed">0</span></p>
+    <p><strong>Win %:</strong> <span id="winPercent">0</span></p>
+    <p><strong>Current Streak:</strong> <span id="currentStreak">0</span></p>
+    <p><strong>Max Streak:</strong> <span id="maxStreak">0</span></p>
+    <p><strong>Guess Distribution:</strong></p>
+    <div id="guessDist"></div>
+
+    <div id="sharePanel">
+      <p><strong>Share your result:</strong></p>
+      <textarea id="shareText" readonly></textarea><br>
+      <button id="copyShare">📋 Copy</button>
+    </div>
+
+    <button onclick="startNewGame()">🔁 Play Again</button>
+  </div>
+
+  <script>
+    const phrases = [
+      { hint: "Unexpected Good Fortune",       text: "LUCKY BREAK" },
+      { hint: "Morning Routine Staple",         text: "TOOTHBRUSH" },
+      { hint: "Popular Italian Dish",           text: "SPAGHETTI BOLOGNESE" },
+      { hint: "Device That Makes Calls",        text: "SMARTPHONE" },
+      { hint: "Large Natural Elevation",        text: "MOUNT EVEREST" },
+      { hint: "Outdoor Winter Activity",        text: "BUILDING A SNOWMAN" },
+      { hint: "Well-Known Celebration",         text: "NEW YEARS EVE" },
+      { hint: "Something Seen in Traffic",      text: "REARVIEW MIRROR" },
+      { hint: "Keeps Things Cold",              text: "REFRIGERATOR" },
+      { hint: "A Way to Show Affection",        text: "BEAR HUG" },
+      { hint: "Old-Fashioned Communication",    text: "HANDWRITTEN LETTER" },
+      { hint: "Location with Many Books",       text: "PUBLIC LIBRARY" },
+      { hint: "Something You Eat with Syrup",   text: "BUTTERMILK PANCAKES" },
+      { hint: "A Common Pet",                   text: "GOLDFISH" },
+      { hint: "Used for Cleaning",              text: "VACUUM CLEANER" },
+      { hint: "Something You Might Wear",       text: "LEATHER JACKET" },
+      { hint: "An Indoor Game",                 text: "PING PONG" },
+      { hint: "Found at a Bakery",              text: "BLUEBERRY MUFFIN" },
+      { hint: "A Famous City",                  text: "NEW ORLEANS" },
+      { hint: "Place with Roller Coasters",     text: "AMUSEMENT PARK" },
+      { hint: "Form of Transportation",         text: "SUBWAY TRAIN" },
+      { hint: "Helps You Keep Time",            text: "GRANDfather CLOCK" },
+      { hint: "Holiday Tradition",              text: "CAROLING" },
+      { hint: "Worn for Style",                 text: "SUNGLASSES" },
+      { hint: "Breaks the Silence",             text: "LOUD SNEEZE" },
+      { hint: "Seen in the Sky",                text: "SHOOTING STAR" },
+      { hint: "Something to Watch",             text: "DOCUMENTARY SERIES" },
+      { hint: "Thing with Wheels",              text: "ROLLER SKATES" },
+      { hint: "Something That Bubbles",         text: "CARBONATED SODA" },
+      { hint: "A Sweet Treat",                  text: "CHOCOLATE TRUFFLE" },
+      { hint: "Used to Make Toast",             text: "TOASTER OVEN" },
+      { hint: "Used for Slicing",               text: "BREAD KNIFE" },
+      { hint: "Something You Plug In",          text: "HAIR DRYER" },
+      { hint: "Often Worn on Feet",             text: "WOOL SOCKS" },
+      { hint: "Can Be Found on a Farm",         text: "BARN DOOR" },
+      { hint: "Something on a Desk",            text: "PAPERCLIP HOLDER" },
+      { hint: "A Way to Travel",                text: "BICYCLE" },
+      { hint: "Used in Art",                    text: "WATERCOLOR PAINT" },
+      { hint: "Type of Puzzle",                 text: "CROSSWORD" },
+      { hint: "Often Eaten in the Morning",     text: "FRUIT SMOOTHIE" },
+      { hint: "Something to Write With",        text: "MECHANICAL PENCIL" },
+      { hint: "A Cold Dessert",                 text: "ICE CREAM SUNDAE" },
+      { hint: "Can Be Found in Nature",         text: "BUTTERFLY WINGS" },
+      { hint: "Symbol of Love",                 text: "RED ROSE" },
+      { hint: "Classic Game",                   text: "HIDE AND SEEK" },
+      { hint: "Often Played with Friends",      text: "CHARADES" },
+      { hint: "Something Found at the Beach",   text: "SANDCASTLE" },
+      { hint: "Heard in an Argument",           text: "RAISED VOICE" },
+      { hint: "Comes After Sunset",             text: "MIDNIGHT" },
+      { hint: "Often Used in Math",             text: "CALCULATOR" },
+      { hint: "Helps You Get Clean",            text: "SHOWER GEL" },
+      { hint: "Typically Made of Wood",         text: "DINING TABLE" },
+      { hint: "Part of the Body",               text: "ELBOW" },
+      { hint: "Used in the Kitchen",            text: "MEASURING CUP" },
+      { hint: "Can Be Folded",                  text: "PAPER AIRPLANE" },
+      { hint: "Part of a Wedding",              text: "FIRST DANCE" },
+      { hint: "Common Drink",                   text: "ORANGE JUICE" },
+      { hint: "Something You Can Ride",         text: "MERRY GO ROUND" },
+      { hint: "Found in a Garden",              text: "TOMATO PLANT" },
+      { hint: "Famous Holiday Song",            text: "SILENT NIGHT" },
+      { hint: "Comes Out at Night",             text: "FULL MOON" },
+      { hint: "Associated with Music",          text: "GUITAR SOLO" },
+      { hint: "Often Found in Schools",         text: "SCIENCE LAB" },
+      { hint: "Something You Can Open",         text: "WINDOW SHADE" },
+      { hint: "Something That Shines",          text: "DIAMOND RING" },
+      { hint: "Often Carved",                   text: "PUMPKIN" },
+      { hint: "Part of a Celebration",          text: "CONFETTI" },
+      { hint: "Can Be Read",                    text: "NEWSPAPER ARTICLE" },
+      { hint: "Known for Speed",                text: "CHEETAH" },
+      { hint: "Served at Dinner",               text: "BAKED POTATO" },
+      { hint: "Can Be Inflated",                text: "BALLOON" },
+      { hint: "Worn in Summer",                 text: "SWIMSUIT" },
+      { hint: "Something That Melts",           text: "CANDLE WAX" },
+      { hint: "Associated with Birthdays",      text: "SURPRISE PARTY" },
+      { hint: "A Scary Creature",               text: "VAMPIRE" },
+      { hint: "Type of Dance",                  text: "TANGO" },
+      { hint: "Something You Lock",             text: "FRONT DOOR" },
+      { hint: "Famous American Monument",       text: "LIBERTY BELL" },
+      { hint: "Used in a Game",                 text: "DICE" },
+      { hint: "Something to Pop",               text: "BUBBLE WRAP" },
+      { hint: "Can Be Drawn",                   text: "SELF PORTRAIT" },
+      { hint: "Can Hold Items",                 text: "SUITCASE" },
+      { hint: "Used to See Clearly",            text: "CONTACT LENSES" },
+      { hint: "Something on the Ground",        text: "SIDEWALK CHALK" },
+      { hint: "You Might Wear This",            text: "BASEBALL CAP" },
+      { hint: "Can Float",                      text: "RUBBER DUCK" },
+      { hint: "Found in the Forest",            text: "OAK TREE" },
+      { hint: "A Noisy Object",                 text: "FIRE ALARM" },
+      { hint: "Used to Protect Skin",           text: "SUNSCREEN" },
+      { hint: "Used in Winter",                 text: "ICE SCRAPER" },
+      { hint: "Famous Dessert",                 text: "APPLE PIE" },
+      { hint: "Thing That Moves Fast",          text: "JET PLANE" },
+      { hint: "Often Found in a Garage",        text: "TOOLBOX" },
+      { hint: "Popular Card Game",              text: "GO FISH" },
+      { hint: "Thing That Spins",               text: "CEILING FAN" },
+      { hint: "Associated with Rain",           text: "PUDDLES" },
+      { hint: "Used for Cooking",               text: "SLOW COOKER" },
+      { hint: "Found in a Toolbox",             text: "PHILLIPS SCREWDRIVER" }
+    ];
+
+    let revealed, revealedIndices, currentGuess, gameOver, phrase, hint;
+    let guessCount = 0, startTime = 0;
+    const stats = { played:0, wins:0, streak:0, maxStreak:0, dist:[0,0,0,0,0,0,0] };
+
+    const hintDiv       = document.getElementById("hint"),
+          phraseDiv     = document.getElementById("hiddenPhrase"),
+          messageDiv    = document.getElementById("message"),
+          resultsScreen = document.getElementById("resultsScreen"),
+          gamesPlayed   = document.getElementById("gamesPlayed"),
+          winPercent    = document.getElementById("winPercent"),
+          currentStreak = document.getElementById("currentStreak"),
+          maxStreak     = document.getElementById("maxStreak"),
+          guessDist     = document.getElementById("guessDist"),
+          guessCountDisp= document.getElementById("guessCountDisplay"),
+          timeEl        = document.getElementById("timeElapsed"),
+          badgeLine     = document.getElementById("badgeLine"),
+          sharePanel    = document.getElementById("sharePanel"),
+          shareText     = document.getElementById("shareText"),
+          copyShare     = document.getElementById("copyShare"),
+          resetBtn      = document.getElementById("resetBtn"),
+          themeToggle   = document.getElementById("themeToggle");
+
+    resetBtn.addEventListener("click", startNewGame);
+    themeToggle.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+    });
+    copyShare.addEventListener("click", () => {
+      shareText.select();
+      document.execCommand("copy");
+    });
+
+    function setupPhrase() {
+      const chosen = phrases[Math.floor(Math.random()*phrases.length)];
+      phrase = chosen.text; hint = chosen.hint;
+      revealed = Array.from(phrase).map(c=> c===" " ? " " : "_");
+      revealedIndices = new Set();
+      currentGuess    = Array.from(phrase).map(c=> c===" " ? " " : "");
+      gameOver = false; guessCount = 0;
+      hintDiv.textContent = `Hint: ${hint}`;
+      messageDiv.textContent = "";
+      resultsScreen.style.display = "none";
+      sharePanel.style.display = "none";
+      startTime = Date.now();
+      revealRandomLetter();
+      renderPhrase();
+    }
+
+    function renderPhrase() {
+      phraseDiv.innerHTML = "";
+      for (let i=0; i<phrase.length; i++) {
+        const span = document.createElement("span");
+        span.className = phrase[i]===" " ? "space-box" : "char-box";
+        span.textContent = revealed[i] !== "_" ? revealed[i] : (currentGuess[i] || "_");
+        phraseDiv.appendChild(span);
+      }
+    }
+
+    function revealLetter(letter) {
+      let found = false;
+      for (let i=0; i<phrase.length; i++) {
+        if (phrase[i] === letter && !revealedIndices.has(i)) {
+          revealed[i] = letter;
+          revealedIndices.add(i);
+          currentGuess[i] = letter;
+          found = true;
+        }
+      }
+      return found;
+    }
+
+    function revealRandomLetter() {
+      const rem = [];
+      for (let i=0; i<phrase.length; i++) {
+        if (phrase[i] !== " " && !revealedIndices.has(i)) rem.push(phrase[i]);
+      }
+      if (rem.length) revealLetter(rem[Math.floor(Math.random()*rem.length)]);
+    }
+
+    function submitGuess() {
+      if (gameOver) return;
+      guessCount++;
+
+      // build the full guess by merging revealed letters + current input
+      const guessStr = revealed
+        .map((c,i) => c !== "_" ? c : currentGuess[i])
+        .join("")
+        .toUpperCase();
+
+      if (guessStr === phrase) {
+        revealed = Array.from(phrase);
+        gameOver = true;
+        messageDiv.textContent = "🎉 Correct!";
+        messageDiv.style.background = "var(--msg-right)";
+        handleStats(true);
+        renderResults();
+      } else {
+        phraseDiv.classList.add("shake");
+        setTimeout(() => phraseDiv.classList.remove("shake"), 400);
+        messageDiv.textContent = "❌ Incorrect.";
+        messageDiv.style.background = "var(--msg-wrong)";
+        revealRandomLetter();
+        if (!revealed.includes("_")) {
+          gameOver = true;
+          messageDiv.textContent = "😞 You didn’t guess it!";
+          handleStats(false);
+          renderResults();
+          return;
+        }
+        currentGuess = Array.from(phrase).map(c=> c===" " ? " " : "");
+        renderPhrase();
+      }
+    }
+
+    function handleStats(won) {
+      stats.played++;
+      if (won) {
+        stats.wins++;
+        stats.streak++;
+        stats.maxStreak = Math.max(stats.maxStreak, stats.streak);
+        const bucket = Math.min(guessCount, 6);
+        stats.dist[bucket]++;
+      } else {
+        stats.streak = 0;
+      }
+    }
+
+    function renderResults() {
+      renderPhrase();
+      guessCountDisp.textContent = guessCount;
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      timeEl.textContent = elapsed;
+      gamesPlayed.textContent   = stats.played;
+      winPercent.textContent    = Math.round(stats.wins / stats.played * 100);
+      currentStreak.textContent = stats.streak;
+      maxStreak.textContent     = stats.maxStreak;
+      guessDist.innerHTML = stats.dist.slice(1)
+        .map((v,i) => `<div class="bar" style="width:${v*10+20}px">${i+1}: ${v}</div>`)
+        .join("");
+
+      const badges = [];
+      if (elapsed <= 10) badges.push("🏎️ Speedster!");
+      if (stats.wins === stats.played) badges.push("🎯 Perfectionist!");
+      badgeLine.textContent = badges.join(" ");
+
+      const won = messageDiv.textContent.startsWith("🎉");
+      const statusEmoji = won ? "🎉" : "😞";
+      const resultText  = won ? "I got" : "I didn't guess";
+      shareText.value = `🔤 Phrase Guesser: ${statusEmoji} ${resultText} “${phrase}” in ${guessCount} guess${guessCount>1?"es":""} (${elapsed}s).`;
+      sharePanel.style.display = "block";
+
+      resultsScreen.style.display = "block";
+    }
+
+    function startNewGame() {
+      setupPhrase();
+    }
+
+    document.addEventListener("keydown", e => {
+      if (gameOver) return;
+      if (e.key === "Enter") submitGuess();
+      else if (e.key === "Backspace") {
+        for (let i=currentGuess.length-1; i>=0; i--) {
+          if (phrase[i] !== " " && currentGuess[i]) {
+            currentGuess[i] = "";
+            break;
+          }
+        }
+      }
+      else if (/^[a-zA-Z]$/.test(e.key)) {
+        for (let i=0; i<currentGuess.length; i++) {
+          if (phrase[i] !== " " && !currentGuess[i] && revealed[i]==="_") {
+            currentGuess[i] = e.key.toUpperCase();
+            break;
+          }
+        }
+      }
+      renderPhrase();
+    });
+
+    setupPhrase();
+  </script>
+
+</body>
+</html>
