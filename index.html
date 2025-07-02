@@ -285,11 +285,12 @@
       }
     });
     hiddenInput.addEventListener("keydown", e => {
-      if (e.key === "Enter") {
-        submitGuess();
-        e.preventDefault();
-      }
-    });
+  if (e.key === "Enter") {
+    submitGuess();
+    e.preventDefault();
+    e.stopPropagation();    // ← add this line
+  }
+});
 
     function setupPhrase() {
       const chosen = phrases[Math.floor(Math.random()*phrases.length)];
@@ -321,17 +322,17 @@
     }
 
     function revealLetter(letter) {
-      let found = false;
-      for (let i = 0; i < phrase.length; i++) {
-        if (phrase[i] === letter && !revealedIndices.has(i)) {
-          revealed[i] = letter;
-          revealedIndices.add(i);
-          currentGuess[i] = letter;
-          found = true;
-        }
-      }
-      return found;
+  for (let i = 0; i < phrase.length; i++) {
+    if (phrase[i] === letter && !revealedIndices.has(i)) {
+      revealed[i] = letter;
+      revealedIndices.add(i);
+      currentGuess[i] = letter;
     }
+  }
+  return true;
+}
+
+
 
     function revealRandomLetter() {
       const rem = [];
@@ -421,9 +422,9 @@
 
     document.addEventListener("keydown", e => {
       if (gameOver) return;
-      if (e.key === "Enter") {
-        submitGuess();
-        e.preventDefault();
+     if (e.key === "Enter" && document.activeElement !== hiddenInput) {
+    submitGuess();
+    e.preventDefault();
       } else if (e.key === "Backspace") {
         for (let i = currentGuess.length - 1; i >= 0; i--) {
           if (phrase[i] !== " " && currentGuess[i]) {
