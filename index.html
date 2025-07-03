@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Mini Phrase Game with Solve Attempt Limit</title>
+  <title>Mini Phrase Game — Mobile Solve Fix</title>
   <style>
     body { font-family: sans-serif; text-align: center; padding: 20px; }
     #category, #hint, #bankroll, #message { margin: 10px 0; }
@@ -10,12 +10,18 @@
       display: flex; justify-content: center; flex-wrap: wrap; gap: 8px;
       font-size: 2rem;
     }
-    .letter-box, .solve-box {
+    .letter-box {
       width: 1.2em; border-bottom: 2px solid #333;
       text-align: center; line-height: 1.2em;
     }
-    .space-box { width: 1.2em; border: none; }
-    .solve-box { color: red; pointer-events: none; }
+    .space-box {
+      width: 1.2em; border: none;
+    }
+    .solve-input {
+      width: 1.2em; border-bottom: 2px solid #333;
+      text-align: center; font-size: 1rem;
+      color: red; background: none; outline: none;
+    }
     #keyboard {
       margin-top: 20px;
       display: grid; grid-template-columns: repeat(13, 1fr); gap: 5px;
@@ -57,7 +63,7 @@
 </head>
 <body>
 
-  <h1>Wordle of Fortune</h1>
+  <h1>Mini Phrase Game</h1>
   <div id="category"></div>
   <div id="phrase"></div>
 
@@ -84,7 +90,7 @@
   </div>
 
   <script>
-  const phrases = [
+    const phrases = [
   // 4-word phrases
   { category:"Proverb",               hint:"Something that seems bad at first but ends well",    phrase:"A BLESSING IN DISGUISE" },
   { category:"Idiomatic Expression",  hint:"Starting over after failure",                          phrase:"BACK TO SQUARE ONE" },
@@ -180,9 +186,6 @@
   { category:"TV Show", hint:"Woman navigates prison life and unlikely friendships",    phrase:"ORANGE IS THE NEW BLACK" },
   { category:"TV Show", hint:"Single women in Manhattan explore love and friendship",    phrase:"SEX AND THE CITY" }
 ];
-
-
-
     const letterCosts = {
       Q:30,W:50,E:140,R:120,T:120,Y:60,U:80,I:110,O:90,P:80,
       A:130,S:120,D:80,F:60,G:70,H:70,J:30,K:50,L:80,
@@ -262,11 +265,7 @@
       document.querySelectorAll(".key").forEach(btn => {
         const l = btn.querySelector(".letter").textContent;
         const cost = letterCosts[l] || 0;
-        if(cost > bankroll || btn.classList.contains("chosen")){
-          btn.classList.add("disabled");
-        } else {
-          btn.classList.remove("disabled");
-        }
+        btn.classList[cost > bankroll || btn.classList.contains("chosen") ? "add" : "remove"]("disabled");
       });
     }
 
@@ -305,7 +304,7 @@
       solveIndex = 0;
       document.querySelectorAll(".key").forEach(k => k.classList.add("disabled"));
       hintBtn.disabled = true;
-      renderSolveView();
+      renderSolveInputs();
       submitSolutionBtn.style.display = "inline-block";
       solveModeBtn.textContent = "Cancel Solve";
     }
@@ -319,67 +318,66 @@
       updateKeys();
     }
 
-    function renderSolveView(){
+    function renderSolveInputs(){
       phraseEl.innerHTML = "";
       for(let i=0; i<current.phrase.length; i++){
         const ch = current.phrase[i];
-        const span = document.createElement("span");
         if(ch === " ") {
+          const span = document.createElement("span");
           span.className = "space-box";
+          phraseEl.appendChild(span);
         } else if(revealed[i] !== "_") {
+          const span = document.createElement("span");
           span.className = "letter-box";
           span.textContent = revealed[i];
+          phraseEl.appendChild(span);
         } else {
-          span.className = "solve-box";
-          span.textContent = solveGuess[i] || "_";
+          const inp = document.createElement("input");
+          inp.className = "solve-input";
+          inp.maxLength = 1;
+          inp.value = solveGuess[i] || "";
+          inp.dataset.idx = i;
+          inp.oninput = e => {
+            const v = e.target.value.toUpperCase().replace(/[^A-Z]/, "");
+            e.target.value = v;
+            solveGuess[i] = v;
+            // move focus to next
+            let next = i+1;
+            while(next < current.phrase.length && (current.phrase[next]===" "|| revealed[next] !== "_")) next++;
+            if(next < current.phrase.length){
+              const nextInput = phraseEl.querySelector(`input[data-idx="${next}"]`);
+              nextInput && nextInput.focus();
+            }
+          };
+          inp.onkeydown = e => {
+            if(e.key === "Backspace" && !inp.value){
+              // move back
+              let prev = i-1;
+              while(prev >= 0 && (current.phrase[prev]===" "|| revealed[prev] !== "_")) prev--;
+              if(prev >= 0){
+                const prevInput = phraseEl.querySelector(`input[data-idx="${prev}"]`);
+                prevInput && prevInput.focus();
+              }
+            }
+          };
+          phraseEl.appendChild(inp);
         }
-        phraseEl.appendChild(span);
       }
+      // focus first empty
+      const first = phraseEl.querySelector('input');
+      first && first.focus();
     }
 
-    document.addEventListener("keydown", e => {
-      // ignore keys when modal is up
-      if(endModal.style.visibility === 'visible') return;
-
-      if(solveMode){
-        if(e.key === "Enter") {
-          submitSolution();
-        } else if(e.key === "Backspace"){
-          do {
-            solveIndex = Math.max(0, solveIndex - 1);
-          } while(
-            (current.phrase[solveIndex] === " " || revealed[solveIndex] !== "_") &&
-            solveIndex > 0
-          );
-          solveGuess[solveIndex] = "";
-          renderSolveView();
-        } else if(/^[a-zA-Z]$/.test(e.key)){
-          while(
-            (current.phrase[solveIndex] === " " || revealed[solveIndex] !== "_") &&
-            solveIndex < solveGuess.length
-          ){
-            solveIndex++;
-          }
-          if(solveIndex < solveGuess.length){
-            solveGuess[solveIndex] = e.key.toUpperCase();
-            solveIndex++;
-            renderSolveView();
-          }
-        }
-        e.preventDefault();
-        return;
-      }
-      if(/^[a-zA-Z]$/.test(e.key)) handleLetter(e.key.toUpperCase());
-    });
-
     submitSolutionBtn.onclick = submitSolution;
+
     function submitSolution(){
       let guess = "";
       for(let i=0; i<current.phrase.length; i++){
-        if(current.phrase[i] === " ") guess += " ";
+        if(current.phrase[i]===" ") guess += " ";
         else if(revealed[i] !== "_") guess += revealed[i];
         else guess += solveGuess[i] || " ";
       }
+
       if(guess === current.phrase){
         revealed = Array.from(current.phrase);
         renderPhrase();
@@ -389,18 +387,13 @@
       } else {
         solveAttempts++;
         if(solveAttempts >= 3){
-          // end round, reveal answer, no score
           revealed = Array.from(current.phrase);
           renderPhrase();
           showEndModal("Too many wrong solves. The answer was: " + current.phrase);
         } else {
-          messageEl.textContent = "❌ Incorrect! (" + solveAttempts + "/3)";
-          // clear solve guesses (keep revealed letters), reset index
-          solveGuess = solveGuess.map((val, idx) =>
-            (current.phrase[idx] !== " " && revealed[idx] === "_") ? "" : val
-          );
-          solveIndex = 0;
-          renderSolveView();
+          messageEl.textContent = `❌ Incorrect! (${solveAttempts}/3)`;
+          solveGuess = solveGuess.map((v,idx) => (revealed[idx]==="_"? "" : v));
+          renderSolveInputs();
         }
       }
     }
@@ -410,8 +403,20 @@
       highestCashEl.textContent = `\$${highestCash}`;
       endModal.style.visibility = "visible";
     }
+
     closeModal.onclick = () => { endModal.style.visibility = "hidden"; resetRound(); };
     resetBtn.onclick = resetRound;
+
+    // block key handling when modal up
+    document.addEventListener("keydown", e => {
+      if(endModal.style.visibility === 'visible') return;
+      if(/^[a-zA-Z]$/.test(e.key) && solveMode) {
+        // mirror typing into focused input
+        const input = document.activeElement;
+        if(input.tagName === "INPUT") return;
+      }
+      if(/^[a-zA-Z]$/.test(e.key) && !solveMode) handleLetter(e.key.toUpperCase());
+    });
 
     initKeyboard();
     resetRound();
