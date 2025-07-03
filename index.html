@@ -1,412 +1,421 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Phrase Guesser</title>
+  <title>Mini Phrase Game with Solve Attempt Limit</title>
   <style>
-    :root {
-      --bg: #f0f0f0;
-      --fg: #333;
-      --box-border: #444;
-      --bar-bg: #888;
-      --msg-wrong: #fdd;
-      --msg-right: #dfd;
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    #category, #hint, #bankroll, #message { margin: 10px 0; }
+    #phrase {
+      display: flex; justify-content: center; flex-wrap: wrap; gap: 8px;
+      font-size: 2rem;
     }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      padding: 30px;
-      background-color: var(--bg);
-      color: var(--fg);
-      text-align: center;
-      transition: background 0.3s, color 0.3s;
+    .letter-box, .solve-box {
+      width: 1.2em; border-bottom: 2px solid #333;
+      text-align: center; line-height: 1.2em;
     }
-    body.dark {
-      --bg: #222;
-      --fg: #eee;
-      --box-border: #aaa;
-      --bar-bg: #bbb;
-      --msg-wrong: #600;
-      --msg-right: #060;
+    .space-box { width: 1.2em; border: none; }
+    .solve-box { color: red; pointer-events: none; }
+    #keyboard {
+      margin-top: 20px;
+      display: grid; grid-template-columns: repeat(13, 1fr); gap: 5px;
     }
-    h1 { margin-bottom: 0; }
-    #hint { font-size: 18px; color: #666; margin-top: 5px; }
+    .key {
+      position: relative; padding: 10px 0 5px; background: #eee;
+      cursor: pointer; user-select: none; border-radius: 4px;
+      font-size: 1rem;
+    }
+    .key.disabled { background: #ccc; cursor: default; }
+    .key.chosen  { opacity: 0.6; }
+    .key .cost {
+      position: absolute; top:2px; left:0; width:100%;
+      font-size:0.8rem; color:green; text-align:center;
+      pointer-events:none;
+    }
+    .key .letter { margin-top:1.2em; display:block; }
+    #controls { margin:20px 0; }
+    button { padding:8px 12px; margin:5px; }
+    #submitSolutionBtn { display:none; }
 
-    #hiddenPhrase {
-      display: flex; flex-wrap: wrap; justify-content: center;
-      font-size: 32px; letter-spacing: 8px;
-      margin: 20px auto; max-width: 600px; gap: 10px;
+    /* Modal */
+    #endModal {
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      background:rgba(0,0,0,0.5); display:flex;
+      align-items:center; justify-content:center;
+      visibility:hidden;
     }
-    .char-box {
-      border-bottom: 2px solid var(--box-border);
-      width: 24px; height: 40px; line-height: 40px;
-      text-transform: uppercase;
+    #endModal .modal-content {
+      background:#fff; padding:20px; border-radius:8px;
+      position:relative; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+      min-width:300px; text-align:center;
     }
-    .space-box { border: none; width: 24px; }
-
-    @keyframes shake {
-      0%,100% { transform: translateX(0) }
-      20%,60% { transform: translateX(-5px) }
-      40%,80% { transform: translateX(5px) }
-    }
-    .shake { animation: shake 0.4s; }
-
-    #message {
-      font-size: 18px; margin-top: 20px;
-      min-height: 1.2em;
-      transition: background 0.3s;
-    }
-
-    button {
-      margin: 10px 5px; padding: 10px 20px;
-      font-size: 16px; cursor: pointer;
-    }
-    #controls { margin-bottom: 10px; }
-
-    #resultsScreen {
-      display: none; margin-top: 40px;
-      background: #fff; border: 1px solid #ccc;
-      padding: 20px; width: 320px;
-      margin-left: auto; margin-right: auto;
-    }
-    body.dark #resultsScreen {
-      background: #333; border-color: #555; color: #eee;
-    }
-    #resultsScreen .bar {
-      background-color: var(--bar-bg);
-      height: 20px; margin: 4px 0;
-      text-align: left; color: white; padding-left: 5px;
-      white-space: nowrap;
-      min-width: 60px;
-    }
-    #resultsScreen p { margin: 6px 0; }
-    #sharePanel { display: none; margin-top: 10px; }
-    #shareText {
-      width: 100%; height: 60px; resize: none;
-      font-size: 14px; padding: 5px;
-    }
-
-    @media (max-width: 480px) {
-      #hiddenPhrase { font-size: 24px; letter-spacing: 4px; }
-      .char-box { width: 18px; height: 30px; line-height: 30px; }
+    #endModal .close-btn {
+      position:absolute; top:8px; right:12px;
+      cursor:pointer; font-size:1.2rem; font-weight:bold;
     }
   </style>
 </head>
 <body>
 
-  <h1>🔤 Phrase Guesser</h1>
-  <div id="hint"></div>
-
-  <div id="hiddenPhrase"></div>
-  <div id="message"></div>
+  <h1>Wordle of Fortune</h1>
+  <div id="category"></div>
+  <div id="phrase"></div>
 
   <div id="controls">
-    <button id="resetBtn">🔄 Reset Game</button>
-    <button id="themeToggle">🌓 Toggle Theme</button>
+    <button id="hintBtn">Reveal Hint (-$200)</button>
+    <button id="solveModeBtn">Solve Puzzle</button>
+    <button id="submitSolutionBtn">Submit Solution</button>
+    <button id="resetBtn">New Phrase</button>
   </div>
 
-  <!-- hidden input to summon mobile keyboard -->
-  <input id="hiddenInput" type="text" maxlength="1"
-         style="position:absolute; top:0; left:0; width:1px; height:1px;
-                opacity:0; pointer-events:none;"
-         autocomplete="off" autocapitalize="none" autocorrect="off" />
+  <div id="hint"></div>
+  <div id="bankroll"></div>
+  <div id="message"></div>
+  <div id="keyboard"></div>
 
-  <div id="resultsScreen">
-    <h2>Thanks for playing!</h2>
-    <p><strong>Guesses:</strong> <span id="guessCountDisplay">0</span></p>
-    <p><strong>Time:</strong> <span id="timeElapsed">0</span>s</p>
-    <p id="badgeLine"></p>
-    <p><strong>Games Played:</strong> <span id="gamesPlayed">0</span></p>
-    <p><strong>Win %:</strong> <span id="winPercent">0</span></p>
-    <p><strong>Current Streak:</strong> <span id="currentStreak">0</span></p>
-    <p><strong>Max Streak:</strong> <span id="maxStreak">0</span></p>
-    <p><strong>Guess Distribution:</strong></p>
-    <div id="guessDist"></div>
-
-    <div id="sharePanel">
-      <p><strong>Share your result:</strong></p>
-      <textarea id="shareText" readonly></textarea><br>
-      <button id="copyShare">📋 Copy</button>
+  <!-- End-of-round modal -->
+  <div id="endModal">
+    <div class="modal-content">
+      <span class="close-btn" id="closeModal">&times;</span>
+      <h2>Round Over</h2>
+      <p id="modalMessage"></p>
+      <p>Highest Cash Streak: <strong id="highestCash"></strong></p>
     </div>
-
-    <button onclick="startNewGame()">🔁 Play Again</button>
   </div>
 
   <script>
-    const phrases = [
-      const phrases = [
+  const phrases = [
   // 4-word phrases
-  { hint: "Something that seems bad at first but ends well", text: "A BLESSING IN DISGUISE" },
-  { hint: "Starting over after failure",                    text: "BACK TO SQUARE ONE" },
-  { hint: "Something very easy",                          text: "A PIECE OF CAKE" },
-  { hint: "A very small, insignificant amount",           text: "A DROP IN THE BUCKET" },
-  { hint: "Hidden advantage kept in reserve",             text: "ACE IN THE HOLE" },
-  { hint: "Making a bad situation worse",                text: "ADDING INSULT TO INJURY" },
-  { hint: "Everyone helps",                              text: "ALL HANDS ON DECK" },
-  { hint: "Big words but no deeds",                      text: "ALL TALK NO ACTION" },
-  { hint: "Speechless or lost for words",                text: "CAT GOT YOUR TONGUE" },
-  { hint: "Perfectly clear",                             text: "CLEAR AS A BELL" },
-  { hint: "Almost successful",                           text: "CLOSE BUT NO CIGAR" },
-  { hint: "Knocked out or defeated",                     text: "DOWN FOR THE COUNT" },
-  { hint: "Don’t give up on me",                         text: "DON'T COUNT ME OUT" },
-  { hint: "Resuming after a break",                      text: "BACK IN THE SADDLE" },
-  { hint: "A joyful experience",                         text: "A MIGHTY GOOD TIME" },
+  { category:"Proverb",               hint:"Something that seems bad at first but ends well",    phrase:"A BLESSING IN DISGUISE" },
+  { category:"Idiomatic Expression",  hint:"Starting over after failure",                          phrase:"BACK TO SQUARE ONE" },
+  { category:"Food Idiom",            hint:"Something very easy to accomplish",                     phrase:"A PIECE OF CAKE" },
+  { category:"Quantity",              hint:"A very small, insignificant amount",                   phrase:"A DROP IN THE BUCKET" },
+  { category:"Card-Game Idiom",       hint:"Keeping a secret advantage up your sleeve",            phrase:"ACE IN THE HOLE" },
+  { category:"Proverb",               hint:"Making a bad situation even worse",                    phrase:"ADDING INSULT TO INJURY" },
+  { category:"Nautical",              hint:"Everyone is needed to get the job done",               phrase:"ALL HANDS ON DECK" },
+  { category:"Critique",              hint:"Big words but no actual follow-through",               phrase:"ALL TALK NO ACTION" },
+  { category:"Expression",            hint:"Lost for words through shock or surprise",              phrase:"CAT GOT YOUR TONGUE" },
+  { category:"Clarity",               hint:"As clear as a perfectly tuned bell",                    phrase:"CLEAR AS A BELL" },
+  { category:"Expression",            hint:"Almost there, but not quite",                          phrase:"CLOSE BUT NO CIGAR" },
+  { category:"Boxing",                hint:"Knocked out or completely beaten",                     phrase:"DOWN FOR THE COUNT" },
+  { category:"Expression",            hint:"Don’t write me off until I’ve tried",                  phrase:"DON'T COUNT ME OUT" },
+  { category:"Western",               hint:"Getting back into action after a break",               phrase:"BACK IN THE SADDLE" },
+  { category:"Compliment",            hint:"An exceptionally great time",                          phrase:"A MIGHTY GOOD TIME" },
 
   // 5-word phrases
-  { hint: "Something unpleasant but unavoidable",           text: "A BITTER PILL TO SWALLOW" },
-  { hint: "A sudden unexpected event",                     text: "A BOLT FROM THE BLUE" },
-  { hint: "Asking someone’s opinion",                      text: "A PENNY FOR YOUR THOUGHTS" },
-  { hint: "Holding a grudge",                              text: "A CHIP ON YOUR SHOULDER" },
-  { hint: "An impending problem",                          text: "A STORM ON THE HORIZON" },
-  { hint: "A very enjoyable experience",                   text: "A WHALE OF A TIME" },
-  { hint: "Time seems slower when waiting",                text: "A WATCHED POT NEVER BOILS" },
-  { hint: "Taking a chance",                               text: "A ROLL OF THE DICE" },
-  { hint: "A perfect partnership",                         text: "A MATCH MADE IN HEAVEN" },
-  { hint: "Feeling listless or dull",                      text: "A CASE OF THE BLAHS" },
-  { hint: "Visually spectacular",                          text: "A FEAST FOR THE EYES" },
-  { hint: "A welcome sight",                               text: "A SIGHT FOR SORE EYES" },
-  { hint: "Getting involved profitably",                   text: "A PIECE OF THE ACTION" },
-  { hint: "Very slim possibility",                         text: "A GHOST OF A CHANCE" },
-  { hint: "Helpful suggestion",                            text: "A FRIENDLY PIECE OF ADVICE" },
+  { category:"Medicine",              hint:"Something unpleasant but necessary",                   phrase:"A BITTER PILL TO SWALLOW" },
+  { category:"Weather",               hint:"A sudden, completely unexpected occurrence",           phrase:"A BOLT FROM THE BLUE" },
+  { category:"Expression",            hint:"What would you do with my opinion?",                   phrase:"A PENNY FOR YOUR THOUGHTS" },
+  { category:"Expression",            hint:"Holding onto anger or resentment",                     phrase:"A CHIP ON YOUR SHOULDER" },
+  { category:"Weather",               hint:"Trouble looming just ahead",                           phrase:"A STORM ON THE HORIZON" },
+  { category:"Leisure",               hint:"An extremely fun and memorable time",                  phrase:"A WHALE OF A TIME" },
+  { category:"Proverb",               hint:"Time seems to crawl when you wait",                    phrase:"A WATCHED POT NEVER BOILS" },
+  { category:"Chance",                hint:"Gambling with the unknown",                            phrase:"A ROLL OF THE DICE" },
+  { category:"Romantic",              hint:"A perfect match made by fate",                         phrase:"A MATCH MADE IN HEAVEN" },
+  { category:"Mood",                  hint:"Feeling listless or out of sorts",                     phrase:"A CASE OF THE BLAHS" },
+  { category:"Visual",                hint:"Stunning to behold",                                   phrase:"A FEAST FOR THE EYES" },
+  { category:"Visual",                hint:"A welcome sight after a long wait",                    phrase:"A SIGHT FOR SORE EYES" },
+  { category:"Business",              hint:"Getting in on the action and profit",                  phrase:"A PIECE OF THE ACTION" },
+  { category:"Probability",           hint:"Extremely unlikely to occur",                          phrase:"A GHOST OF A CHANCE" },
+  { category:"Advice",                hint:"A tip to point you in the right direction",           phrase:"A FRIENDLY PIECE OF ADVICE" },
 
   // 6-word phrases
-  { hint: "Very cheap deal",                            text: "A BARGAIN AT HALF THE PRICE" },
-  { hint: "More value for your money",                  text: "A BIGGER BANG FOR YOUR BUCK" },
-  { hint: "Someone overly self-important",              text: "A LEGEND IN HIS OWN MIND" },
-  { hint: "Sumptuous, lavish meal",                     text: "A MEAL FIT FOR A KING" },
-  { hint: "Fix it now to prevent bigger problems",      text: "A STITCH IN TIME SAVES NINE" },
-  { hint: "Extremely fun experience",                   text: "A WHALE OF A GOOD TIME" },
-  { hint: "Being apart increases affection",            text: "ABSENCE MAKES THE HEART GROW FONDER" },
-  { hint: "When everything has been considered",        text: "AFTER ALL IS SAID AND DONE" },
-  { hint: "Exactly as intended",                        text: "ALL ACCORDING TO THE MASTER PLAN" },
-  { hint: "Manners matter",                             text: "ALWAYS SAY PLEASE AND THANK YOU" },
+  { category:"Shopping",              hint:"A deal that’s almost too good to pass up",             phrase:"A BARGAIN AT HALF THE PRICE" },
+  { category:"Value",                 hint:"Greater return on your spending",                      phrase:"A BIGGER BANG FOR YOUR BUCK" },
+  { category:"Character",             hint:"Someone convinced they’re more important than others",  phrase:"A LEGEND IN HIS OWN MIND" },
+  { category:"Royalty",               hint:"A meal fit for a king or queen",                       phrase:"A MEAL FIT FOR A KING" },
+  { category:"Proverb",               hint:"Fix a small problem before it becomes huge",           phrase:"A STITCH IN TIME SAVES NINE" },
+  { category:"Leisure",               hint:"An absolute blast from start to finish",               phrase:"A WHALE OF A GOOD TIME" },
+  { category:"Love",                  hint:"Distance makes the heart grow fonder",                  phrase:"ABSENCE MAKES THE HEART GROW FONDER" },
+  { category:"Reflection",            hint:"When it’s all been said and done",                     phrase:"AFTER ALL IS SAID AND DONE" },
+  { category:"Planning",              hint:"Everything goes exactly as you mapped it out",         phrase:"ALL ACCORDING TO THE MASTER PLAN" },
+  { category:"Etiquette",             hint:"Politeness goes a very long way",                      phrase:"ALWAYS SAY PLEASE AND THANK YOU" },
 
   // 7-word phrases
-  { hint: "Someone important in a small setting",       text: "A BIG FISH IN A SMALL POND" },
-  { hint: "Tough to find a decent person",             text: "A GOOD MAN IS HARD TO FIND" },
-  { hint: "Saving money is beneficial",                 text: "A PENNY SAVED IS A PENNY EARNED" },
-  { hint: "Images convey complex messages",             text: "A PICTURE IS WORTH A THOUSAND WORDS" },
-  { hint: "Exceeding expectations",                     text: "ABOVE AND BEYOND THE CALL OF DUTY" },
-  { hint: "All that plus something extra",              text: "ALL THAT AND A BAG OF CHIPS" },
-  { hint: "Wishing for success",                        text: "AND MAY ALL YOUR DREAMS COME TRUE" },
-  { hint: "Reveal a secret",                            text: "LET THE CAT OUT OF THE BAG" },
-  { hint: "Attempt too much and fail",                  text: "BITE OFF MORE THAN YOU CAN CHEW" },
-  { hint: "Things improve after bad times",             text: "IT'S ALWAYS DARKEST BEFORE THE DAWN" }
+  { category:"Hierarchy",             hint:"A big name in a small setting",                        phrase:"A BIG FISH IN A SMALL POND" },
+  { category:"Proverb",               hint:"Hard to locate someone of outstanding quality",        phrase:"A GOOD MAN IS HARD TO FIND" },
+  { category:"Money",                 hint:"Saving just a little now can help later",              phrase:"A PENNY SAVED IS A PENNY EARNED" },
+  { category:"Photography",           hint:"A single image can tell a thousand things",            phrase:"A PICTURE IS WORTH A THOUSAND WORDS" },
+  { category:"Service",               hint:"Going well beyond what’s required",                    phrase:"ABOVE AND BEYOND THE CALL OF DUTY" },
+  { category:"Slang",                 hint:"And as an extra, something unexpected",                phrase:"ALL THAT AND A BAG OF CHIPS" },
+  { category:"Wish",                  hint:"May every one of your hopes come true",                phrase:"AND MAY ALL YOUR DREAMS COME TRUE" },
+  { category:"Secret",                hint:"Accidentally let the cat run free",                    phrase:"LET THE CAT OUT OF THE BAG" },
+  { category:"Warning",               hint:"Trying too much can backfire badly",                   phrase:"BITE OFF MORE THAN YOU CAN CHEW" },
+
+  // Media titles
+
+  // Movies (10 titles, 3–7 words, no apostrophes)
+  { category:"Movie", hint:"Time-traveling teenager’s wild ride",                   phrase:"BACK TO THE FUTURE" },
+  { category:"Movie", hint:"Civil War-era epic romance",                          phrase:"GONE WITH THE WIND" },
+  { category:"Movie", hint:"Child lost in magical land of Oz",                    phrase:"THE WIZARD OF OZ" },
+  { category:"Movie", hint:"Psychologist chases a serial killer",                phrase:"THE SILENCE OF THE LAMBS" },
+  { category:"Movie", hint:"Navy crew battles giant sea creature",                phrase:"JAWS THE REVENGE" },
+  { category:"Movie", hint:"Archaeologist races Nazis for sacred relic",          phrase:"RAIDERS OF THE LOST ARK" },
+  { category:"Movie", hint:"Apocalypse survivor battles undead hordes",           phrase:"DAWN OF THE DEAD" },
+  { category:"Movie", hint:"Creature emerges from a moonlit lagoon",              phrase:"THE CREATURE FROM THE BLACK LAGOON" },
+  { category:"Movie", hint:"Patient rebels in a mental institution",              phrase:"ONE FLEW OVER THE CUCOOS NEST" },
+  { category:"Movie", hint:"Scientist prevents an assassination to save tomorrow", phrase:"THE MAN WHO KNEW TOO MUCH" },
+
+  // Books (10 titles, 3–7 words, no apostrophes)
+  { category:"Book", hint:"Scout witnesses racial injustice in Depression South",    phrase:"TO KILL A MOCKINGBIRD" },
+  { category:"Book", hint:"Family saga spanning generations in South America",     phrase:"ONE HUNDRED YEARS OF SOLITUDE" },
+  { category:"Book", hint:"Revolutionary Paris at the turn of the century",       phrase:"A TALE OF TWO CITIES" },
+  { category:"Book", hint:"Romance and social satire in Regency England",         phrase:"PRIDE AND PREJUDICE" },
+  { category:"Book", hint:"Teen alienation in elite New York prep school",        phrase:"THE CATCHER IN THE RYE" },
+  { category:"Book", hint:"Dust Bowl tragedy and migrant hardship",               phrase:"THE GRAPES OF WRATH" },
+  { category:"Book", hint:"Dystopian world under total government control",       phrase:"BRAVE NEW WORLD" },
+  { category:"Book", hint:"Crime and punishment in Tsarist Russia",               phrase:"A CLOCKWORK ORANGE" },
+  { category:"Book", hint:"Children stranded uncover their own savagery",         phrase:"LORD OF THE FLIES" },
+  { category:"Book", hint:"Symbologist races to solve Church mysteries",          phrase:"ANGELS AND DEMONS" },
+
+  // TV Shows (10 titles, 3–7 words, no apostrophes)
+  { category:"TV Show", hint:"Lawyer defends accused teen in racial trial",            phrase:"A TIME TO KILL" },  
+  { category:"TV Show", hint:"Friends navigate life and love in New York",           phrase:"HOW I MET YOUR MOTHER" },
+  { category:"TV Show", hint:"Community survives zombie apocalypse",                   phrase:"THE WALKING DEAD" },
+  { category:"TV Show", hint:"Politician manipulates Washington power structures",    phrase:"HOUSE OF CARDS" },
+  { category:"TV Show", hint:"Family sitcom set in suburban America",                 phrase:"EVERYBODY LOVES RAYMOND" },
+  { category:"TV Show", hint:"Warring families vie for control of a realm",           phrase:"GAME OF THRONES" },
+  { category:"TV Show", hint:"Geeks and scientists solve cosmic mysteries",            phrase:"THE BIG BANG THEORY" },
+  { category:"TV Show", hint:"Detectives tackle sex crimes in New York",              phrase:"LAW AND ORDER SPECIAL VICTIMS UNIT" },
+  { category:"TV Show", hint:"Woman navigates prison life and unlikely friendships",    phrase:"ORANGE IS THE NEW BLACK" },
+  { category:"TV Show", hint:"Single women in Manhattan explore love and friendship",    phrase:"SEX AND THE CITY" }
 ];
 
-    let revealed, revealedIndices, currentGuess, gameOver, phrase, hint;
-    let guessCount = 0, startTime = 0;
-    const stats = { played:0, wins:0, streak:0, maxStreak:0, dist:[0,0,0,0,0,0,0] };
 
-    // DOM refs
-    const hintDiv       = document.getElementById("hint"),
-          phraseDiv     = document.getElementById("hiddenPhrase"),
-          messageDiv    = document.getElementById("message"),
-          resultsScreen = document.getElementById("resultsScreen"),
-          gamesPlayed   = document.getElementById("gamesPlayed"),
-          winPercent    = document.getElementById("winPercent"),
-          currentStreak = document.getElementById("currentStreak"),
-          maxStreak     = document.getElementById("maxStreak"),
-          guessDist     = document.getElementById("guessDist"),
-          guessCountDisp= document.getElementById("guessCountDisplay"),
-          timeEl        = document.getElementById("timeElapsed"),
-          badgeLine     = document.getElementById("badgeLine"),
-          sharePanel    = document.getElementById("sharePanel"),
-          shareText     = document.getElementById("shareText"),
-          copyShare     = document.getElementById("copyShare"),
-          resetBtn      = document.getElementById("resetBtn"),
-          themeToggle   = document.getElementById("themeToggle"),
-          hiddenInput   = document.getElementById("hiddenInput");
 
-    resetBtn.addEventListener("click", startNewGame);
-    themeToggle.addEventListener("click", () => document.body.classList.toggle("dark"));
-    copyShare.addEventListener("click", () => {
-      shareText.select();
-      document.execCommand("copy");
-    });
+    const letterCosts = {
+      Q:30,W:50,E:140,R:120,T:120,Y:60,U:80,I:110,O:90,P:80,
+      A:130,S:120,D:80,F:60,G:70,H:70,J:30,K:50,L:80,
+      Z:40,X:40,C:80,V:50,B:60,N:100,M:70
+    };
 
-    // always keep the hidden input focused
-    function focusInput() {
-      hiddenInput.value = "";
-      hiddenInput.focus();
+    let current, revealed, solveGuess, solveIndex, solveAttempts;
+    const initialBankroll = 1000;
+    let bankroll = initialBankroll, highestCash = 0;
+    let solveMode = false;
+
+    const categoryEl        = document.getElementById("category"),
+          phraseEl          = document.getElementById("phrase"),
+          hintEl            = document.getElementById("hint"),
+          hintBtn           = document.getElementById("hintBtn"),
+          solveModeBtn      = document.getElementById("solveModeBtn"),
+          submitSolutionBtn = document.getElementById("submitSolutionBtn"),
+          resetBtn          = document.getElementById("resetBtn"),
+          bankrollEl        = document.getElementById("bankroll"),
+          messageEl         = document.getElementById("message"),
+          keyboardEl        = document.getElementById("keyboard"),
+          endModal          = document.getElementById("endModal"),
+          closeModal        = document.getElementById("closeModal"),
+          modalMessageEl    = document.getElementById("modalMessage"),
+          highestCashEl     = document.getElementById("highestCash");
+
+    function initKeyboard(){
+      keyboardEl.innerHTML = "";
+      "QWERTYUIOPASDFGHJKLZXCVBNM".split("").forEach(letter => {
+        const btn = document.createElement("div");
+        btn.className = "key";
+        btn.innerHTML = `
+          <span class="cost">\$${letterCosts[letter]}</span>
+          <span class="letter">${letter}</span>`;
+        btn.onclick = () => handleLetter(letter);
+        keyboardEl.appendChild(btn);
+      });
     }
-    document.addEventListener("touchend", focusInput);
 
-    hiddenInput.addEventListener("input", e => {
-      const letter = e.target.value.toUpperCase();
-      e.target.value = "";
-      if (/^[A-Z]$/.test(letter)) {
-        for (let i = 0; i < currentGuess.length; i++) {
-          if (phrase[i] !== " " && !currentGuess[i] && revealed[i] === "_") {
-            currentGuess[i] = letter;
-            break;
-          }
-        }
-        renderPhrase();
-      }
-    });
-    hiddenInput.addEventListener("keydown", e => {
-  if (e.key === "Enter") {
-    submitGuess();
-    e.preventDefault();
-    e.stopPropagation();    // ← add this line
-  }
-});
-
-    function setupPhrase() {
-      const chosen = phrases[Math.floor(Math.random()*phrases.length)];
-      phrase = chosen.text;
-      hint   = chosen.hint;
-      revealed = Array.from(phrase).map(c=> c===" " ? " " : "_");
-      revealedIndices = new Set();
-      currentGuess = Array.from(phrase).map(c=> c===" " ? " " : "");
-      gameOver = false;
-      guessCount = 0;
-      hintDiv.textContent = `Hint: ${hint}`;
-      messageDiv.textContent = "";
-      resultsScreen.style.display = "none";
-      sharePanel.style.display = "none";
-      startTime = Date.now();
-      revealRandomLetter();
+    function resetRound(){
+      solveMode = false;
+      solveAttempts = 0;
+      messageEl.textContent = "";
+      current = phrases[Math.floor(Math.random()*phrases.length)];
+      revealed = Array.from(current.phrase).map(c => c === " " ? " " : "_");
+      bankroll = initialBankroll;
+      categoryEl.textContent = "Category: " + current.category;
+      hintEl.textContent = "";
+      submitSolutionBtn.style.display = "none";
+      solveModeBtn.textContent = "Solve Puzzle";
       renderPhrase();
-      focusInput();
+      document.querySelectorAll(".key").forEach(k => k.classList.remove("chosen","disabled"));
+      hintBtn.disabled = false;
+      updateBankroll();
+      updateKeys();
     }
 
-    function renderPhrase() {
-      phraseDiv.innerHTML = "";
-      for (let i = 0; i < phrase.length; i++) {
+    function renderPhrase(){
+      phraseEl.innerHTML = "";
+      revealed.forEach(ch => {
         const span = document.createElement("span");
-        span.className = phrase[i]===" " ? "space-box" : "char-box";
-        span.textContent = revealed[i] !== "_" ? revealed[i] : (currentGuess[i]||"_");
-        phraseDiv.appendChild(span);
-      }
-    }
-
-    function revealLetter(letter) {
-  for (let i = 0; i < phrase.length; i++) {
-    if (phrase[i] === letter && !revealedIndices.has(i)) {
-      revealed[i] = letter;
-      revealedIndices.add(i);
-      currentGuess[i] = letter;
-    }
-  }
-  return true;
-}
-
-
-
-    function revealRandomLetter() {
-      const rem = [];
-      for (let i = 0; i < phrase.length; i++) {
-        if (phrase[i] !== " " && !revealedIndices.has(i)) rem.push(phrase[i]);
-      }
-      if (rem.length) revealLetter(rem[Math.floor(Math.random()*rem.length)]);
-    }
-
-    function submitGuess() {
-      if (gameOver) return;
-      guessCount++;
-
-      const guessStr = revealed
-        .map((c,i) => c !== "_" ? c : currentGuess[i])
-        .join("")
-        .toUpperCase();
-
-      if (guessStr === phrase) {
-        gameOver = true;
-        revealed = Array.from(phrase);
-        messageDiv.textContent = "🎉 Correct!";
-        messageDiv.style.background = "var(--msg-right)";
-        handleStats(true);
-        renderResults();
-      } else {
-        phraseDiv.classList.add("shake");
-        setTimeout(()=> phraseDiv.classList.remove("shake"), 400);
-        messageDiv.textContent = "❌ Incorrect.";
-        messageDiv.style.background = "var(--msg-wrong)";
-        revealRandomLetter();
-        if (!revealed.includes("_")) {
-          gameOver = true;
-          messageDiv.textContent = "😞 You didn’t guess it!";
-          handleStats(false);
-          renderResults();
-          return;
+        if(ch === " ") {
+          span.className = "space-box";
+        } else {
+          span.className = "letter-box";
+          span.textContent = ch;
         }
-        currentGuess = Array.from(phrase).map(c=> c===" " ? " " : "");
-        renderPhrase();
-      }
+        phraseEl.appendChild(span);
+      });
     }
 
-    function handleStats(won) {
-      stats.played++;
-      if (won) {
-        stats.wins++;
-        stats.streak++;
-        stats.maxStreak = Math.max(stats.maxStreak, stats.streak);
-        const bucket = Math.min(guessCount, 6);
-        stats.dist[bucket]++;
-      } else {
-        stats.streak = 0;
-      }
+    function updateBankroll(){
+      bankrollEl.innerHTML = `Bankroll: <strong style="color:green">\$${bankroll}</strong>`;
     }
 
-    function renderResults() {
+    function updateKeys(){
+      document.querySelectorAll(".key").forEach(btn => {
+        const l = btn.querySelector(".letter").textContent;
+        const cost = letterCosts[l] || 0;
+        if(cost > bankroll || btn.classList.contains("chosen")){
+          btn.classList.add("disabled");
+        } else {
+          btn.classList.remove("disabled");
+        }
+      });
+    }
+
+    function handleLetter(letter){
+      if(solveMode) return;
+      const cost = letterCosts[letter] || 0;
+      if(bankroll < cost) return;
+      bankroll -= cost; updateBankroll();
+      document.querySelectorAll(".key").forEach(b => {
+        if(b.querySelector(".letter").textContent === letter) b.classList.add("chosen");
+      });
+      let hit = false;
+      for(let i=0; i<current.phrase.length; i++){
+        if(current.phrase[i] === letter && revealed[i] === "_"){
+          revealed[i] = letter; hit = true;
+        }
+      }
+      renderPhrase(); updateKeys();
+      messageEl.textContent = hit ? "✅ Good guess!" : "❌ No luck!";
+    }
+
+    hintBtn.onclick = () => {
+      if(bankroll < 200 || solveMode) return;
+      bankroll -= 200; updateBankroll();
+      hintEl.textContent = "Hint: " + current.hint;
+    };
+
+    solveModeBtn.onclick = () => {
+      solveMode = !solveMode;
+      if(solveMode) enterSolveMode();
+      else exitSolveMode();
+    };
+
+    function enterSolveMode(){
+      solveGuess = Array(current.phrase.length).fill("");
+      solveIndex = 0;
+      document.querySelectorAll(".key").forEach(k => k.classList.add("disabled"));
+      hintBtn.disabled = true;
+      renderSolveView();
+      submitSolutionBtn.style.display = "inline-block";
+      solveModeBtn.textContent = "Cancel Solve";
+    }
+
+    function exitSolveMode(){
       renderPhrase();
-      guessCountDisp.textContent = guessCount;
-      const elapsed = Math.round((Date.now() - startTime) / 1000);
-      timeEl.textContent = elapsed;
-      gamesPlayed.textContent = stats.played;
-      winPercent.textContent = Math.round(stats.wins / stats.played * 100);
-      currentStreak.textContent = stats.streak;
-      maxStreak.textContent = stats.maxStreak;
-      guessDist.innerHTML = stats.dist.slice(1)
-        .map((v,i) => `<div class="bar" style="width:${v*10+20}px">${i+1}: ${v}</div>`)
-        .join("");
-
-      const badges = [];
-      if (elapsed <= 10) badges.push("🏎️ Speedster!");
-      if (stats.wins === stats.played) badges.push("🎯 Perfectionist!");
-      badgeLine.textContent = badges.join(" ");
-
-      const won = messageDiv.textContent.startsWith("🎉");
-      const resultText = won ? "I got" : "I didn't guess";
-      shareText.value = `🔤 Phrase Guesser: ${won?"🎉":"😞"} ${resultText} “${phrase}” in ${guessCount} guess${guessCount>1?"es":""} (${elapsed}s).`;
-      sharePanel.style.display = "block";
-
-      resultsScreen.style.display = "block";
-      focusInput();
+      document.querySelectorAll(".key").forEach(k => k.classList.remove("disabled"));
+      hintBtn.disabled = false;
+      submitSolutionBtn.style.display = "none";
+      solveModeBtn.textContent = "Solve Puzzle";
+      updateKeys();
     }
 
-    function startNewGame() {
-      setupPhrase();
+    function renderSolveView(){
+      phraseEl.innerHTML = "";
+      for(let i=0; i<current.phrase.length; i++){
+        const ch = current.phrase[i];
+        const span = document.createElement("span");
+        if(ch === " ") {
+          span.className = "space-box";
+        } else if(revealed[i] !== "_") {
+          span.className = "letter-box";
+          span.textContent = revealed[i];
+        } else {
+          span.className = "solve-box";
+          span.textContent = solveGuess[i] || "_";
+        }
+        phraseEl.appendChild(span);
+      }
     }
 
     document.addEventListener("keydown", e => {
-      if (gameOver) return;
-     if (e.key === "Enter" && document.activeElement !== hiddenInput) {
-    submitGuess();
-    e.preventDefault();
-      } else if (e.key === "Backspace") {
-        for (let i = currentGuess.length - 1; i >= 0; i--) {
-          if (phrase[i] !== " " && currentGuess[i]) {
-            currentGuess[i] = "";
-            break;
+      // ignore keys when modal is up
+      if(endModal.style.visibility === 'visible') return;
+
+      if(solveMode){
+        if(e.key === "Enter") {
+          submitSolution();
+        } else if(e.key === "Backspace"){
+          do {
+            solveIndex = Math.max(0, solveIndex - 1);
+          } while(
+            (current.phrase[solveIndex] === " " || revealed[solveIndex] !== "_") &&
+            solveIndex > 0
+          );
+          solveGuess[solveIndex] = "";
+          renderSolveView();
+        } else if(/^[a-zA-Z]$/.test(e.key)){
+          while(
+            (current.phrase[solveIndex] === " " || revealed[solveIndex] !== "_") &&
+            solveIndex < solveGuess.length
+          ){
+            solveIndex++;
+          }
+          if(solveIndex < solveGuess.length){
+            solveGuess[solveIndex] = e.key.toUpperCase();
+            solveIndex++;
+            renderSolveView();
           }
         }
-      } else if (
-          /^[a-zA-Z]$/.test(e.key)
-          && document.activeElement !== hiddenInput) {
-        for (let i = 0; i < currentGuess.length; i++) {
-          if (phrase[i] !== " " && !currentGuess[i] && revealed[i] === "_") {
-            currentGuess[i] = e.key.toUpperCase();
-            break;
-          }
-        }
+        e.preventDefault();
+        return;
       }
-      renderPhrase();
+      if(/^[a-zA-Z]$/.test(e.key)) handleLetter(e.key.toUpperCase());
     });
 
-    // initialize
-    setupPhrase();
+    submitSolutionBtn.onclick = submitSolution;
+    function submitSolution(){
+      let guess = "";
+      for(let i=0; i<current.phrase.length; i++){
+        if(current.phrase[i] === " ") guess += " ";
+        else if(revealed[i] !== "_") guess += revealed[i];
+        else guess += solveGuess[i] || " ";
+      }
+      if(guess === current.phrase){
+        revealed = Array.from(current.phrase);
+        renderPhrase();
+        messageEl.textContent = "🎉 Correct!";
+        highestCash += bankroll;
+        showEndModal("You got it! You banked $" + bankroll + ".");
+      } else {
+        solveAttempts++;
+        if(solveAttempts >= 3){
+          // end round, reveal answer, no score
+          revealed = Array.from(current.phrase);
+          renderPhrase();
+          showEndModal("Too many wrong solves. The answer was: " + current.phrase);
+        } else {
+          messageEl.textContent = "❌ Incorrect! (" + solveAttempts + "/3)";
+          // clear solve guesses (keep revealed letters), reset index
+          solveGuess = solveGuess.map((val, idx) =>
+            (current.phrase[idx] !== " " && revealed[idx] === "_") ? "" : val
+          );
+          solveIndex = 0;
+          renderSolveView();
+        }
+      }
+    }
+
+    function showEndModal(msg){
+      modalMessageEl.textContent = msg;
+      highestCashEl.textContent = `\$${highestCash}`;
+      endModal.style.visibility = "visible";
+    }
+    closeModal.onclick = () => { endModal.style.visibility = "hidden"; resetRound(); };
+    resetBtn.onclick = resetRound;
+
+    initKeyboard();
+    resetRound();
   </script>
+
 </body>
 </html>
