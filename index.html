@@ -2,62 +2,136 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mini Phrase Game — Mobile Solve Fix</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; }
-    #category, #hint, #bankroll, #message { margin: 10px 0; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 5vw;
+    }
+
+    #category, #hint, #bankroll, #message {
+      margin: 1em 0;
+    }
+
     #phrase {
-      display: flex; justify-content: center; flex-wrap: wrap; gap: 8px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5em;
       font-size: 2rem;
     }
+
     .letter-box {
-      width: 1.2em; border-bottom: 2px solid #333;
-      text-align: center; line-height: 1.2em;
+      width: 1.2em;
+      border-bottom: 2px solid #333;
+      text-align: center;
+      line-height: 1.2em;
     }
+
     .space-box {
-      width: 1.2em; border: none;
+      width: 1.2em;
+      border: none;
     }
+
     .solve-input {
-      width: 1.2em; border-bottom: 2px solid #333;
-      text-align: center; font-size: 1rem;
-      color: red; background: none; outline: none;
+      width: 1.2em;
+      border-bottom: 2px solid #333;
+      text-align: center;
+      font-size: 1.2rem;
+      color: red;
+      background: none;
+      outline: none;
     }
+
     #keyboard {
       margin-top: 20px;
-      display: grid; grid-template-columns: repeat(13, 1fr); gap: 5px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(2.2em, 1fr));
+      gap: 5px;
     }
+
     .key {
-      position: relative; padding: 10px 0 5px; background: #eee;
-      cursor: pointer; user-select: none; border-radius: 4px;
+      position: relative;
+      padding: 0.6em 0 0.3em;
+      background: #eee;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 4px;
       font-size: 1rem;
     }
-    .key.disabled { background: #ccc; cursor: default; }
-    .key.chosen  { opacity: 0.6; }
-    .key .cost {
-      position: absolute; top:2px; left:0; width:100%;
-      font-size:0.8rem; color:green; text-align:center;
-      pointer-events:none;
+
+    .key.disabled {
+      background: #ccc;
+      cursor: default;
     }
-    .key .letter { margin-top:1.2em; display:block; }
-    #controls { margin:20px 0; }
-    button { padding:8px 12px; margin:5px; }
-    #submitSolutionBtn { display:none; }
+
+    .key.chosen {
+      opacity: 0.6;
+    }
+
+    .key .cost {
+      position: absolute;
+      top: 2px;
+      left: 0;
+      width: 100%;
+      font-size: 0.8rem;
+      color: green;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .key .letter {
+      margin-top: 1.2em;
+      display: block;
+    }
+
+    #controls {
+      margin: 20px 0;
+    }
+
+    button {
+      padding: 0.5em 1em;
+      margin: 0.5em;
+      font-size: 1em;
+    }
+
+    #submitSolutionBtn {
+      display: none;
+    }
 
     /* Modal */
     #endModal {
-      position:fixed; top:0; left:0; width:100%; height:100%;
-      background:rgba(0,0,0,0.5); display:flex;
-      align-items:center; justify-content:center;
-      visibility:hidden;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      visibility: hidden;
     }
+
     #endModal .modal-content {
-      background:#fff; padding:20px; border-radius:8px;
-      position:relative; box-shadow:0 4px 12px rgba(0,0,0,0.3);
-      min-width:300px; text-align:center;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      position: relative;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      min-width: 300px;
+      text-align: center;
     }
+
     #endModal .close-btn {
-      position:absolute; top:8px; right:12px;
-      cursor:pointer; font-size:1.2rem; font-weight:bold;
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      font-weight: bold;
     }
   </style>
 </head>
